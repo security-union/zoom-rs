@@ -6491,7 +6491,6 @@ dependencies = [
  "reqwasm",
  "rsa",
  "serde",
- "serde_derive",
  "types",
  "urlencoding",
  "wasm-bindgen",

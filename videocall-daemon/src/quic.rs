@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Error;
-use clap::Parser;
 use protobuf::Message;
 use quinn::Connection;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -10,60 +9,21 @@ use tokio::{
     time::{self, Duration},
 };
 use tracing::{debug, info};
-use url::Url;
 use videocall_types::protos::{
     connection_packet::ConnectionPacket,
     media_packet::{media_packet::MediaType, MediaPacket},
     packet_wrapper::{packet_wrapper::PacketType, PacketWrapper},
 };
 
-
-
-/// Video Call Daemon
-///
-/// This daemon connects to the videocall.rs and streams audio and video to the specified meeting.
-/// 
-/// You can watch the video at https://videocall.rs/meeting/{user_id}/{meeting_id}
-
-#[derive(Parser, Debug)]
-#[clap(name = "client")]
-pub struct Opt {
-    /// Perform NSS-compatible TLS key logging to the file specified in `SSLKEYLOGFILE`.
-    #[clap(long = "keylog")]
-    keylog: bool,
-
-    /// URL to connect to.
-    #[clap(long = "url", default_value = "https://transport.rustlemania.com")]
-    url: Url,
-
-    #[clap(long = "user-id")]
-    pub user_id: String,
-
-    #[clap(long = "meeting-id")]
-    pub meeting_id: String,
-
-    #[clap(long = "video-device-index")]
-    pub video_device_index: usize,
-
-    #[clap(long = "audio-device")]
-    pub audio_device: Option<String>,
-
-    /// Resolution in WIDTHxHEIGHT format (e.g., 1920x1080)
-    #[clap(long = "resolution")]
-    pub resolution: String,
-
-    /// Frames per second (e.g. 10, 30, 60)
-    #[clap(long = "fps")]
-    pub fps: u32,
-}
+use crate::cli_args::Streaming;
 
 pub struct Client {
-    options: Opt,
+    options: Streaming,
     sender: Option<Sender<Vec<u8>>>,
 }
 
 impl Client {
-    pub fn new(options: Opt) -> Self {
+    pub fn new(options: Streaming) -> Self {
         Self {
             options,
             sender: None,
@@ -108,11 +68,9 @@ impl Client {
     }
 
     pub async fn send(conn: Connection, data: Vec<u8>) -> anyhow::Result<()> {
-        debug!("Sending {} bytes", data.len());
         let mut stream = conn.open_uni().await?;
         stream.write_all(&data).await?;
         stream.finish().await?;
-        debug!("Sent {} bytes", data.len());
         Ok(())
     }
 
@@ -131,7 +89,7 @@ impl Client {
         }
     }
 
-    async fn start_heartbeat(&self, conn: Connection, options: &Opt) {
+    async fn start_heartbeat(&self, conn: Connection, options: &Streaming) {
         let interval = time::interval(Duration::from_secs(1));
         let email = options.user_id.clone();
         tokio::spawn(async move {
@@ -164,7 +122,7 @@ impl Client {
     }
 }
 
-async fn connect_to_server(options: &Opt) -> anyhow::Result<Connection> {
+async fn connect_to_server(options: &Streaming) -> anyhow::Result<Connection> {
     loop {
         info!("Attempting to connect to {}", options.url);
         let addrs = options

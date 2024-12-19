@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::mem::MaybeUninit;
 use std::os::raw::{c_int, c_ulong};
+use tracing::info;
 use vpx_sys::*;
 
 macro_rules! vpx {
@@ -50,25 +51,29 @@ impl Default for VideoEncoderBuilder {
 
 impl VideoEncoderBuilder {
     pub fn set_resolution(mut self, width: u32, height: u32) -> Self {
+        info!("Setting resolution to {}x{}", width, height);
         self.resolution = (width, height);
         self
     }
 
     pub fn build(&self) -> Result<VideoEncoder> {
-        if self.resolution.0 % 2 != 0 || self.resolution.0 == 0 {
+        let (width, height) = self.resolution;
+        if width % 2 != 0 || width == 0 {
             return Err(anyhow!("Width must be divisible by 2"));
         }
-        if self.resolution.1 % 2 != 0 || self.resolution.1 == 0 {
+        if height % 2 != 0 || height == 0 {
             return Err(anyhow!("Height must be divisible by 2"));
         }
         let cfg_ptr = vpx_ptr!(vpx_codec_vp9_cx());
         let mut cfg = unsafe { MaybeUninit::zeroed().assume_init() };
         vpx!(vpx_codec_enc_config_default(cfg_ptr, &mut cfg, 0));
 
-        cfg.g_w = self.resolution.0;
-        cfg.g_h = self.resolution.1;
-        cfg.g_timebase.num = self.timebase.0;
-        cfg.g_timebase.den = self.timebase.1;
+        let (num, den) = self.timebase;
+
+        cfg.g_w = width;
+        cfg.g_h = height;
+        cfg.g_timebase.num = num;
+        cfg.g_timebase.den = den;
         cfg.rc_target_bitrate = self.bitrate_kbps;
         cfg.rc_min_quantizer = self.min_quantizer;
         cfg.rc_max_quantizer = self.max_quantizer;
